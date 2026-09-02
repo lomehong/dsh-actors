@@ -141,6 +141,43 @@ export function apply(ctx: unknown): void {
         }),
       )
 
+      // v2 关系档案聚合：实体 + 关系轨（观察/推断/开环）——软依赖 dsh-memory
+      disposers.push(
+        web.register({
+          kind: 'exact',
+          path: '/dsh-actors/profiles',
+          handler: (_req, res) => {
+            try {
+              interface RelEntry { id: string; content: string; timestamp?: string; lifecycle?: { state?: string }; relation?: { actorId: string; kind: string; openLoop?: { closedAt?: string; openedAt?: string } } }
+              const memory = c.get?.('dsh-memory') as { loadSharedMemory?: () => RelEntry[] } | undefined
+              const relEntries = memory?.loadSharedMemory?.() ?? []
+              const profiles = list().map(entity => {
+                const rels = relEntries.filter(
+                  x => x.relation?.actorId === entity.id && (x.lifecycle?.state ?? '当前') === '当前',
+                )
+                const openLoops = rels.filter(x => x.relation?.openLoop !== undefined && x.relation.openLoop.closedAt === undefined)
+                return {
+                  entity,
+                  relationCount: rels.length,
+                  openLoops: openLoops.map(x => ({
+                    memoryId: x.id,
+                    content: x.content,
+                    openedAt: x.relation?.openLoop?.openedAt ?? x.timestamp ?? '',
+                  })),
+                  observations: rels
+                    .filter(x => x.relation?.openLoop === undefined || x.relation.openLoop.closedAt !== undefined)
+                    .slice(-5)
+                    .map(x => ({ memoryId: x.id, kind: x.relation?.kind ?? '观察', content: x.content, ts: x.timestamp ?? '' })),
+                }
+              })
+              respondJson(res, 200, { ok: true, profiles })
+            } catch (e) {
+              respondJson(res, 500, { ok: false, error: e instanceof Error ? e.message : String(e) })
+            }
+          },
+        }),
+      )
+
       disposers.push(
         web.register({
           kind: 'exact',
