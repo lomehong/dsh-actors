@@ -34,5 +34,8 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1-rc.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1"
   }
 }
